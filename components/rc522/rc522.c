@@ -29,7 +29,6 @@
 spi_device_handle_t rc522_handle;
 
 void rc522_init(void) {
-    //configuração do barramento do protocolo SPI
     spi_bus_config_t barramento = {
         .mosi_io_num = MOSI,
         .miso_io_num = MISO,
@@ -39,7 +38,6 @@ void rc522_init(void) {
         .max_transfer_sz = 0
     };
 
-    //configuração do sensor RC522 que usará o barramento configurado acima
     spi_device_interface_config_t dispositivo = {
         .clock_speed_hz = CLOCK_SPEED, //5Mhz
         .mode = 0,
