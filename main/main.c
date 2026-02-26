@@ -8,6 +8,7 @@
 #include <esp_event.h>
 #include <esp_wifi.h>
 #include <esp_http_server.h>
+#include <nvs.h>
 
 const char *pagina_html = 
     "<!DOCTYPE html>"
@@ -84,6 +85,31 @@ const char *pagina_html =
     "</body>"
     "</html>";
 
+
+void salvar_credenciais_nvs(const char* ssid, const char* senha) {
+    nvs_handle_t manipulador_nvs;
+    esp_err_t erro;
+
+    erro = nvs_open("config_rede", NVS_READWRITE, &manipulador_nvs);
+    
+    if (erro != ESP_OK) {
+        printf("Erro ao abrir a gaveta do NVS!\n");
+        return;
+    }
+
+    nvs_set_str(manipulador_nvs, "ssid", ssid);
+    nvs_set_str(manipulador_nvs, "senha", senha);
+
+    erro = nvs_commit(manipulador_nvs);
+    if (erro == ESP_OK) {
+        printf("\n[ NVS ] ---> Credenciais da rede salvas permanentemente!\n\n");
+    } else {
+        printf("\n[ ERRO ] ---> Falha ao gravar fisicamente no NVS!\n\n");
+    }
+
+    nvs_close(manipulador_nvs);
+}
+
 esp_err_t rota_raiz_handler(httpd_req_t *req) {
     httpd_resp_send(req, pagina_html, HTTPD_RESP_USE_STRLEN);
     return ESP_OK;
@@ -96,12 +122,48 @@ httpd_uri_t rota_raiz = {
     .user_ctx  = NULL
 };
 
+esp_err_t rota_salvar_handler(httpd_req_t *req) {
+    char buffer[100]; 
+    
+    int tamanho_recebido = httpd_req_recv(req, buffer, sizeof(buffer) - 1);
+    if (tamanho_recebido <= 0) {
+        return ESP_FAIL;
+    }
+    buffer[tamanho_recebido] = '\0';
+
+    char ssid_recebido[32] = {0};
+    char senha_recebida[64] = {0};
+
+    httpd_query_key_value(buffer, "ssid", ssid_recebido, sizeof(ssid_recebido));
+    httpd_query_key_value(buffer, "senha", senha_recebida, sizeof(senha_recebida));
+
+    printf("\n=== DADOS CAPTURADOS DO CELULAR ===\n");
+    printf("Rede (SSID): %s\n", ssid_recebido);
+    printf("Senha: %s\n", senha_recebida);
+    printf("===================================\n\n");
+
+    salvar_credenciais_nvs(ssid_recebido, senha_recebida);
+
+    const char *resposta = "Dados recebidos com sucesso! Olhe o terminal do Linux.";
+    httpd_resp_send(req, resposta, HTTPD_RESP_USE_STRLEN);
+    
+    return ESP_OK;
+}
+
+httpd_uri_t rota_salvar = {
+    .uri = "/salvar",
+    .method = HTTP_POST,
+    .handler = rota_salvar_handler,
+    .user_ctx = NULL
+};
+
 httpd_handle_t iniciar_servidor_web(void) {
     httpd_handle_t servidor = NULL;
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-
+    
     if (httpd_start(&servidor, &config) == ESP_OK) {
         httpd_register_uri_handler(servidor, &rota_raiz);
+        httpd_register_uri_handler(servidor, &rota_salvar);
         printf("Servidor Web iniciado na porta 80!\n");
     }
     return servidor;
